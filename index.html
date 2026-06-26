@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neerslag NL — KNMI Open Data</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #111827;
+            color: #e5e7eb;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Topbar ── */
+        #topbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            background: #1f2937;
+            border-bottom: 1px solid #374151;
+            flex-shrink: 0;
+            z-index: 1000;
+        }
+
+        #topbar h1 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #7dd3fc;
+            white-space: nowrap;
+        }
+
+        .mode-toggle {
+            display: flex;
+            background: #111827;
+            border-radius: 8px;
+            padding: 3px;
+            gap: 2px;
+        }
+
+        .mode-btn {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            padding: 5px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .mode-btn.active {
+            background: #1d4ed8;
+            color: #fff;
+        }
+
+        .mode-btn:hover:not(.active) {
+            background: #374151;
+            color: #e5e7eb;
+        }
+
+        #time-display {
+            font-size: 13px;
+            color: #7dd3fc;
+            font-weight: 600;
+            min-width: 170px;
+            background: #111827;
+            padding: 5px 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        #status-badge {
+            font-size: 11px;
+            color: #6b7280;
+            margin-left: auto;
+        }
+
+        #status-badge.ok { color: #34d399; }
+        #status-badge.error { color: #f87171; }
+        #status-badge.loading { color: #fbbf24; }
+
+        /* ── Map ── */
+        #map {
+            flex: 1;
+            min-height: 0;
+        }
+
+        /* ── Bottom controls ── */
+        #controls {
+            background: #1f2937;
+            border-top: 1px solid #374151;
+            padding: 12px 16px;
+            flex-shrink: 0;
+        }
+
+        .ctrl-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ctrl-btn {
+            background: #374151;
+            border: none;
+            color: #e5e7eb;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+
+        .ctrl-btn:hover { background: #4b5563; }
+        .ctrl-btn.play-btn { background: #1d4ed8; }
+        .ctrl-btn.play-btn:hover { background: #2563eb; }
+
+        #timeline {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 5px;
+            background: #374151;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        #timeline::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #7dd3fc;
+            cursor: pointer;
+            box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.2);
+        }
+
+        #timeline::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #7dd3fc;
+            cursor: pointer;
+            border: none;
+        }
+
+        .frame-label {
+            font-size: 11px;
+            color: #6b7280;
+            min-width: 40px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        /* ── Legend ── */
+        #legend {
+            position: absolute;
+            right: 12px;
+            bottom: 110px;
+            z-index: 900;
+            background: rgba(31, 41, 55, 0.92);
+            border: 1px solid #374151;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+        }
+
+        #legend .title {
+            color: #9ca3af;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .legend-bar-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .legend-gradient {
+            height: 10px;
+            width: 140px;
+            border-radius: 3px;
+            background: linear-gradient(to right,
+                #d0f0ff 0%,
+                #70c8ff 20%,
+                #0066ff 40%,
+                #00cc44 55%,
+                #ffee00 70%,
+                #ff6600 85%,
+                #cc0000 100%
+            );
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            color: #6b7280;
+        }
+
+        /* ── Mobiel ── */
+        @media (max-width: 600px) {
+            #topbar {
+                flex-wrap: wrap;
+                gap: 6px;
+                padding: 8px 10px;
+            }
+
+            #topbar h1 {
+                font-size: 14px;
+                flex: 1;
+            }
+
+            #status-badge {
+                margin-left: 0;
+                font-size: 11px;
+            }
+
+            .mode-toggle {
+                width: 100%;
+                order: 3;
+            }
+
+            .mode-btn {
+                flex: 1;
+                text-align: center;
+                padding: 6px 8px;
+                font-size: 12px;
+            }
+
+            #time-display {
+                order: 4;
+                width: 100%;
+                min-width: unset;
+                font-size: 12px;
+                padding: 4px 8px;
+            }
+
+            #controls {
+                padding: 10px 10px;
+            }
+
+            .ctrl-btn {
+                width: 42px;
+                height: 42px;
+                font-size: 16px;
+            }
+
+            #timeline::-webkit-slider-thumb {
+                width: 22px;
+                height: 22px;
+            }
+
+            #timeline::-moz-range-thumb {
+                width: 22px;
+                height: 22px;
+            }
+
+            #timeline {
+                height: 6px;
+            }
+
+            #legend {
+                bottom: 130px;
+                right: 8px;
+                padding: 7px 9px;
+            }
+        }
+
+        /* ── Leaflet overrides ── */
+        .leaflet-control-zoom {
+            border: none !important;
+        }
+        .leaflet-control-zoom a {
+            background: #1f2937 !important;
+            color: #e5e7eb !important;
+            border-color: #374151 !important;
+        }
+        .leaflet-control-zoom a:hover {
+            background: #374151 !important;
+        }
+        .leaflet-control-attribution {
+            background: rgba(17, 24, 39, 0.8) !important;
+            color: #4b5563 !important;
+            font-size: 10px !important;
+        }
+        .leaflet-control-attribution a { color: #6b7280 !important; }
+    </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div id="topbar">
+    <h1>🌧 Neerslag NL</h1>
+    <div class="mode-toggle">
+        <button class="mode-btn active" id="btn-history" onclick="setMode('history')">Afgelopen 2 uur</button>
+        <button class="mode-btn" id="btn-forecast" onclick="setMode('forecast')">Voorspelling 2 uur</button>
+    </div>
+    <div id="time-display">—</div>
+    <span id="status-badge" class="loading">● Laden...</span>
+</div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Legend (positioned over map) -->
+<div id="legend">
+    <div class="title">Neerslag intensiteit</div>
+    <img src="https://anonymous.api.dataplatform.knmi.nl/wms/adaguc-server?DATASET=nl_rdr_data_rtcor_5m&SERVICE=WMS&version=1.1.1&request=GetLegendGraphic&layer=precipitation_real_time&format=image/png&STYLE=rainrate-blue-to-purple/nearest&width=140&height=20&horizontal=true"
+         alt="Legenda neerslag" style="width:140px; display:block; margin-top:4px; border-radius:3px;"
+         onerror="this.style.display='none'; document.getElementById('legend-fallback').style.display='block'"/>
+    <div id="legend-fallback" style="display:none">
+        <div class="legend-gradient"></div>
+        <div class="legend-labels"><span>Licht</span><span>Zwaar</span></div>
+    </div>
+</div>
+
+<!-- Bottom controls -->
+<div id="controls">
+    <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="stepFrame(-1)" title="Vorige frame">⏮</button>
+        <button class="ctrl-btn play-btn" id="btn-play" onclick="togglePlay()" title="Afspelen / Pauzeren">▶</button>
+        <button class="ctrl-btn" onclick="stepFrame(1)" title="Volgende frame">⏭</button>
+        <input type="range" id="timeline" min="0" max="24" value="24" oninput="onSlider(this.value)"/>
+        <span class="frame-label" id="frame-label">25/25</span>
+    </div>
+</div>
+
+<script>
+// ── Kaart initialiseren ────────────────────────────────────────────────────────
+const map = L.map('map', {
+    center: [52.3, 5.3],
+    zoom: 7,
+    zoomControl: true
+});
+
+// Basiskaart: CartoDB Positron (licht, neutraal)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+}).addTo(map);
+
+// ── WMS configuratie ──────────────────────────────────────────────────────────
+const WMS_BASE = {
+    history:  '/wms/adaguc-server?DATASET=nl_rdr_data_rtcor_5m&',
+    forecast: '/wms/adaguc-server?DATASET=radar_forecast_2.0&'
+};
+const WMS_LAYER = {
+    history:  'precipitation_real_time',
+    forecast: 'precipitation_nowcast'
+};
+
+// ── Toestand ──────────────────────────────────────────────────────────────────
+let mode = 'history';
+let frames = [];
+let currentFrame = 0;
+let playing = false;
+let playTimer = null;
+let radarLayer = null;
+let tileLoadCount = 0;
+
+// ── Tijdstappen ───────────────────────────────────────────────────────────────
+function roundTo5Min(d) {
+    return new Date(Date.UTC(
+        d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(),
+        d.getUTCHours(), Math.floor(d.getUTCMinutes() / 5) * 5, 0
+    ));
+}
+
+function generateFrames(m) {
+    // KNMI-radardata heeft ~10-15 min vertraging; gebruik die offset als "nu"
+    const dataEnd = roundTo5Min(new Date(Date.now() - 15 * 60 * 1000));
+    const result = [];
+    if (m === 'history') {
+        // Afgelopen 2 uur tot meest recente beschikbare data
+        for (let i = -24; i <= 0; i++) {
+            result.push(new Date(dataEnd.getTime() + i * 5 * 60 * 1000));
+        }
+    } else {
+        // Nowcast: van meest recente data tot +2 uur
+        for (let i = 0; i <= 24; i++) {
+            result.push(new Date(dataEnd.getTime() + i * 5 * 60 * 1000));
+        }
+    }
+    return result;
+}
+
+function toWMSTime(d) {
+    return d.toISOString().slice(0, 19) + 'Z';
+}
+
+function formatTime(d) {
+    return d.toLocaleString('nl-NL', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Amsterdam'
+    });
+}
+
+// ── Radarlaag ─────────────────────────────────────────────────────────────────
+function createRadarLayer(m, time) {
+    if (radarLayer) {
+        map.removeLayer(radarLayer);
+        radarLayer = null;
+    }
+    tileLoadCount = 0;
+    setStatus('loading', '● Laden...');
+
+    radarLayer = L.tileLayer.wms(WMS_BASE[m], {
+        layers: WMS_LAYER[m],
+        styles: 'rainrate-blue-to-purple/nearest',
+        format: 'image/png',
+        transparent: true,
+        version: '1.3.0',
+        TIME: toWMSTime(time),
+        opacity: 0.85,
+        attribution: 'Radardata: <a href="https://dataplatform.knmi.nl">KNMI</a> (CC-BY-4.0)'
+    });
+
+    radarLayer.on('tileerror', () => {
+        setStatus('error', '● Fout (rate limit?)');
+    });
+
+    radarLayer.on('tileload', () => {
+        tileLoadCount++;
+        if (tileLoadCount >= 2) setStatus('ok', '● Live KNMI data');
+    });
+
+    radarLayer.addTo(map);
+}
+
+function updateRadarTime(time) {
+    if (radarLayer) {
+        radarLayer.setParams({ TIME: toWMSTime(time) }, false);
+    }
+}
+
+// ── Frame bijwerken ───────────────────────────────────────────────────────────
+function goToFrame(idx) {
+    currentFrame = Math.max(0, Math.min(frames.length - 1, idx));
+    const t = frames[currentFrame];
+
+    // Tijdweergave
+    document.getElementById('time-display').textContent = formatTime(t);
+    document.getElementById('timeline').value = currentFrame;
+    document.getElementById('frame-label').textContent =
+        `${currentFrame + 1}/${frames.length}`;
+
+    // Markeer toekomst
+    const isFuture = mode === 'forecast' && currentFrame > 0;
+    document.getElementById('time-display').style.color = isFuture ? '#fbbf24' : '#7dd3fc';
+
+    updateRadarTime(t);
+}
+
+// ── Modus wisselen ────────────────────────────────────────────────────────────
+function setMode(m) {
+    if (playing) stopPlay();
+    mode = m;
+
+    document.getElementById('btn-history').classList.toggle('active', m === 'history');
+    document.getElementById('btn-forecast').classList.toggle('active', m === 'forecast');
+
+    frames = generateFrames(m);
+    document.getElementById('timeline').max = frames.length - 1;
+
+    const startFrame = m === 'history' ? frames.length - 1 : 0;
+    createRadarLayer(m, frames[startFrame]);
+    goToFrame(startFrame);
+}
+
+// ── Afspelen ──────────────────────────────────────────────────────────────────
+function togglePlay() {
+    playing ? stopPlay() : startPlay();
+}
+
+function startPlay() {
+    playing = true;
+    document.getElementById('btn-play').textContent = '⏸';
+    document.getElementById('btn-play').title = 'Pauzeren';
+    playTimer = setInterval(() => {
+        let next = currentFrame + 1;
+        if (next >= frames.length) next = 0;
+        goToFrame(next);
+    }, 700);
+}
+
+function stopPlay() {
+    playing = false;
+    clearInterval(playTimer);
+    playTimer = null;
+    document.getElementById('btn-play').textContent = '▶';
+    document.getElementById('btn-play').title = 'Afspelen';
+}
+
+function stepFrame(dir) {
+    if (playing) stopPlay();
+    goToFrame(currentFrame + dir);
+}
+
+function onSlider(val) {
+    if (playing) stopPlay();
+    goToFrame(parseInt(val));
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+function setStatus(cls, text) {
+    const el = document.getElementById('status-badge');
+    el.className = cls;
+    el.textContent = text;
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+setMode('history');
+</script>
+</body>
+</html>
