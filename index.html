@@ -13,7 +13,8 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: #111827;
             color: #e5e7eb;
-            height: 100vh;
+            height: 100vh; /* terugval voor oudere browsers */
+            height: 100dvh; /* werkelijke zichtbare hoogte op mobiel, zonder de verschuivende adres-/werkbalk mee te tellen */
             display: flex;
             flex-direction: column;
             overflow: hidden;
