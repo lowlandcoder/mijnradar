@@ -1,0 +1,14 @@
+[Unit]
+Description=MijnRadar: elke 5 minuten verversen
+
+[Timer]
+OnCalendar=*:0/5
+# Kleine vaste vertraging zodat het KNMI-bestand van het hele 5-minutenblok
+# al beschikbaar is op het moment van ophalen
+OnCalendar=
+OnCalendar=*:1/5:30
+RandomizedDelaySec=20
+Persistent=true
+
+[Install]
+WantedBy=timers.target

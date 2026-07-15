@@ -1,0 +1,14 @@
+[Unit]
+Description=MijnRadar: KNMI radar ophalen en renderen
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+EnvironmentFile=/etc/mijnradar/mijnradar.env
+WorkingDirectory=/opt/mijnradar
+ExecStart=/opt/mijnradar/venv/bin/python -m knmi_radar.run --data /var/www/mijnradar/data --werk /var/lib/mijnradar/werk --cache /var/lib/mijnradar/cache
+Nice=10
+TimeoutStartSec=240
