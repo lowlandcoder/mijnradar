@@ -196,23 +196,27 @@
 
         .legend-gradient {
             height: 10px;
-            width: 140px;
+            width: 196px;
             border-radius: 3px;
+            /* Zelfde kleurstops als de server gebruikt bij het renderen. */
             background: linear-gradient(to right,
-                #d0f0ff 0%,
-                #70c8ff 20%,
-                #0066ff 40%,
-                #00cc44 55%,
-                #ffee00 70%,
-                #ff6600 85%,
-                #cc0000 100%
+                rgb(208, 240, 255) 0%,
+                rgb(112, 200, 255) 16.7%,
+                rgb(0, 102, 255) 33.3%,
+                rgb(0, 204, 68) 50%,
+                rgb(255, 238, 0) 66.7%,
+                rgb(255, 102, 0) 83.3%,
+                rgb(204, 0, 0) 100%
             );
+            margin-top: 4px;
         }
 
         .legend-labels {
             display: flex;
             justify-content: space-between;
-            color: #6b7280;
+            color: #9ca3af;
+            font-size: 10px;
+            margin-top: 3px;
         }
 
         /* ── Mobiel ── */
@@ -320,15 +324,13 @@
 <!-- Map -->
 <div id="map"></div>
 
-<!-- Legend (positioned over map) -->
+<!-- Legenda (over de kaart); kleuren gelijk aan KLEURSTOPS in render.py -->
 <div id="legend">
-    <div class="title">Neerslag intensiteit</div>
-    <img src="https://anonymous.api.dataplatform.knmi.nl/wms/adaguc-server?DATASET=nl_rdr_data_rtcor_5m&SERVICE=WMS&version=1.1.1&request=GetLegendGraphic&layer=precipitation_real_time&format=image/png&STYLE=rainrate-blue-to-purple/nearest&width=140&height=20&horizontal=true"
-         alt="Legenda neerslag" style="width:140px; display:block; margin-top:4px; border-radius:3px;"
-         onerror="this.style.display='none'; document.getElementById('legend-fallback').style.display='block'"/>
-    <div id="legend-fallback" style="display:none">
-        <div class="legend-gradient"></div>
-        <div class="legend-labels"><span>Licht</span><span>Zwaar</span></div>
+    <div class="title">Neerslag (mm/uur)</div>
+    <div class="legend-gradient"></div>
+    <div class="legend-labels">
+        <span>0,1</span><span>0,3</span><span>1</span><span>3</span>
+        <span>10</span><span>30</span><span>100</span>
     </div>
 </div>
 
