@@ -345,11 +345,15 @@
 
 <script>
 // ── Kaart initialiseren ────────────────────────────────────────────────────────
-const map = L.map('map', {
-    center: [52.3, 5.3],
-    zoom: 7,
-    zoomControl: true
-});
+// Beginweergave: heel Nederland in beeld, met Haarlem gemarkeerd.
+const NL_GRENZEN = [[50.7, 3.2], [53.6, 7.3]];
+const map = L.map('map', { zoomControl: true });
+map.fitBounds(NL_GRENZEN);
+
+L.circleMarker([52.387, 4.646], {
+    radius: 5, color: '#1d4ed8', fillColor: '#3b82f6',
+    fillOpacity: 0.9, weight: 2
+}).addTo(map).bindTooltip('Haarlem');
 
 // Basiskaart: CartoDB Positron (licht, neutraal)
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -431,8 +435,9 @@ function goToFrame(idx) {
 }
 
 // ── Modus wisselen ────────────────────────────────────────────────────────────
-function setMode(m) {
-    if (playing) stopPlay();
+// pasModusToe wisselt de reeks zonder het afspelen te onderbreken; setMode is
+// voor de knoppen en stopt het afspelen eerst. Geeft true terug bij succes.
+function pasModusToe(m, startIdx) {
     mode = m;
 
     document.getElementById('btn-history').classList.toggle('active', m === 'history');
@@ -445,11 +450,17 @@ function setMode(m) {
         setStatus('error', '● Geen gegevens');
         document.getElementById('time-display').textContent = '—';
         document.getElementById('frame-label').textContent = '0/0';
-        return;
+        return false;
     }
 
-    const startFrame = m === 'history' ? frames.length - 1 : 0;
-    goToFrame(startFrame);
+    if (startIdx === undefined) startIdx = m === 'history' ? frames.length - 1 : 0;
+    goToFrame(startIdx);
+    return true;
+}
+
+function setMode(m) {
+    if (playing) stopPlay();
+    pasModusToe(m);
 }
 
 // ── Gegevens verversen (eerste keer en daarna elke 5 minuten) ─────────────────
@@ -460,9 +471,24 @@ async function ververs(eersteKeer) {
         if (!data.bounds) throw new Error('Geen kaartgrenzen ontvangen');
         frameData = data;
 
-        const opLaatsteFrame = eersteKeer
-            ? true
-            : (mode === 'history' ? currentFrame >= frames.length - 1 : currentFrame === 0);
+        if (eersteKeer) {
+            // Direct starten met afspelen: eerst de afgelopen 2 uur,
+            // daarna de voorspelling, in een doorlopende lus.
+            if (pasModusToe('history', 0)) startPlay();
+            return;
+        }
+
+        if (playing) {
+            // Tijdens het afspelen alleen de gegevens verversen.
+            frames = frameData[mode] || [];
+            document.getElementById('timeline').max = Math.max(frames.length - 1, 0);
+            if (!frames.length) { setStatus('error', '● Geen gegevens'); stopPlay(); return; }
+            if (currentFrame >= frames.length) goToFrame(0);
+            return;
+        }
+
+        const opLaatsteFrame =
+            mode === 'history' ? currentFrame >= frames.length - 1 : currentFrame === 0;
 
         frames = frameData[mode] || [];
         document.getElementById('timeline').max = Math.max(frames.length - 1, 0);
@@ -490,9 +516,18 @@ function startPlay() {
     document.getElementById('btn-play').textContent = '⏸';
     document.getElementById('btn-play').title = 'Pauzeren';
     playTimer = setInterval(() => {
-        let next = currentFrame + 1;
-        if (next >= frames.length) next = 0;
-        goToFrame(next);
+        let volgende = currentFrame + 1;
+        if (volgende >= frames.length) {
+            // Einde van de reeks: door naar de andere reeks, zodat de lus
+            // afwisselend de afgelopen 2 uur en de voorspelling toont.
+            const andere = mode === 'history' ? 'forecast' : 'history';
+            if ((frameData[andere] || []).length) {
+                pasModusToe(andere, 0);
+                return;
+            }
+            volgende = 0;
+        }
+        goToFrame(volgende);
     }, 700);
 }
 
