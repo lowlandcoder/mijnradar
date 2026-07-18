@@ -30,8 +30,21 @@ volledig doorgevoerd, zie Aandachtspunten in OVERZICHT.md).
 ## Instellingen
 
 Kopieer `mijnradar.env.example` naar `/etc/mijnradar/mijnradar.env` op de
-server en vul `KNMI_API_KEY` in. Dit bestand bevat een geheim en hoort nooit
-op GitHub.
+server en vul `KNMI_API_KEY` in. Dit bestand bevat geheimen (ook het
+SMTP-wachtwoord van het weeralert) en hoort nooit op GitHub.
+
+## Weeralert
+
+De module `knmi_radar/alert.py` controleert bij elk nieuw nowcastbestand of
+er binnen de ingestelde straal rond het punt (standaard 10 km rond Haarlem)
+neerslag wordt verwacht van ten minste de drempel (standaard 1 mm/uur). Zo
+ja, dan gaat er een e-mail naar de adressen in `ALERT_NAAR`, met het
+verwachte begintijdstip en de zwaarste intensiteit. Na een alert blijft het
+stil tot de wachttijd om is (standaard 6 uur); dat tijdstip staat in
+`status.json` in de cachemap. Alle waarden zijn instelbaar in
+`/etc/mijnradar/mijnradar.env` (zie `mijnradar.env.example`). Het alert
+staat uit zolang `ALERT_NAAR` of `SMTP_HOST` leeg is; een fout in het alert
+breekt het renderen niet.
 
 ## Serveronderdelen
 

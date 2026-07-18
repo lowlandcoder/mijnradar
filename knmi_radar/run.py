@@ -21,6 +21,7 @@ import re
 import shutil
 import sys
 
+from knmi_radar import alert
 from knmi_radar.fetch import KNMIClient
 from knmi_radar.render import render_bestand, grenzen
 
@@ -100,6 +101,12 @@ def verwerk_nowcast(client: KNMIClient, data_map: str, werk_map: str,
         shutil.rmtree(tmp_map, ignore_errors=True)
         os.makedirs(tmp_map)
         render_bestand(h5_pad, tmp_map, cache_map, prefix="fc")
+        # Weeralert: controleer de nieuwe verwachting op neerslag rond het
+        # ingestelde punt. Een fout hier mag het renderen niet breken.
+        try:
+            alert.controleer(h5_pad, starttijd, status)
+        except Exception as fout:  # noqa: BLE001
+            log.error("Weeralert mislukt: %s", fout)
         os.remove(h5_pad)
         oud = uitvoer + ".oud"
         shutil.rmtree(oud, ignore_errors=True)
