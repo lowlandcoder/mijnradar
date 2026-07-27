@@ -128,9 +128,12 @@ def verwerk(data_map: str, werk_map: str, cache_map: str, status: dict) -> dict:
                 fouten.append("zon %s: %s" % (stempel, fout))
                 continue
             index, nacht = index_en_nacht(gemeten, helder)
+            # Eerst naar .part schrijven en dan omzetten, zodat de webserver
+            # nooit een half bestand serveert. Het formaat moet er expliciet
+            # bij: PIL leidt dat normaal af uit de extensie, en .part zegt niets.
             tijdelijk = png_pad + ".part"
-            Image.fromarray(kleuren(index, nacht), "RGBA").save(tijdelijk,
-                                                               optimize=True)
+            Image.fromarray(kleuren(index, nacht), "RGBA").save(
+                tijdelijk, "PNG", optimize=True)
             os.replace(tijdelijk, png_pad)
             nieuw += 1
         frames.append({"time": iso(tijdstip), "file": "zon/%s" % png_naam})
