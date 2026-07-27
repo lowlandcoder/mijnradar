@@ -1,37 +1,79 @@
 # MijnRadar
 
-Neerslagradar voor Nederland: historie van de laatste 2 uur en een korte-
-termijnverwachting, op een Leaflet-kaart in de gedeelde huisstijl (nog niet
-volledig doorgevoerd, zie Aandachtspunten in OVERZICHT.md).
+Weerkaart voor Nederland met meerdere lagen: historie van de laatste 2 uur en,
+waar de bron dat toelaat, een korte-termijnverwachting. Leaflet-kaart in de
+gedeelde huisstijl (nog niet volledig doorgevoerd, zie Aandachtspunten in
+OVERZICHT.md).
 
 ## Wat de pagina toont
 
-- Kaart met neerslagintensiteit, als schuivende reeks PNG-frames: 25 frames
-  historie (laatste 2 uur, elke 5 minuten) en 25 frames verwachting
-  (nowcast).
-- De browser leest de kaartgrenzen en beschikbare frames uit `frames.json`.
+- Een schuivende reeks PNG-frames over de kaart, met een tijdbalk en een
+  afspeelknop. Alle lagen delen hetzelfde doelraster van 704 bij 832
+  beeldpunten, zodat ze exact op elkaar passen.
+- De browser leest de kaartgrenzen, de beschikbare lagen en hun frames uit
+  `frames.json`. Ook de legenda komt daaruit, zodat de kleuren altijd gelijk
+  zijn aan wat de server rendert.
+- De laag is te kiezen in de bovenbalk, of met `?laag=<sleutel>` in de URL.
+  Bij een enkele laag blijft die keuze verborgen.
+
+## Lagen
+
+| Laag | Bron | Interval | Verwachting |
+| --- | --- | --- | --- |
+| `neerslag` | KNMI Open Data, radarcomposiet en nowcast | 5 minuten | ja, 2 uur |
+| `zon` | KNMI MSG-CPP, satelliet Meteosat | 15 minuten | nee |
+
+De zonlaag toont niet de kale zonnestraling maar de **helderheidsindex**: de
+gemeten straling gedeeld door de straling bij een onbewolkte hemel. Een kaart in
+W/m² laat vooral de zonnestand zien en is 's ochtends overal donker, ook bij een
+strakblauwe hemel. De index is daar ongevoelig voor. 's Nachts is de index
+betekenisloos; die beeldpunten blijven doorzichtig.
+
+Een laag draait alleen mee als de bijbehorende API-sleutel is ingesteld. Zonder
+`KNMI_WMS_API_KEY` blijft de zonlaag eenvoudigweg weg, zonder foutmelding.
 
 ## Techniek
 
-- **Webpagina:** `index.html`, rechtstreeks vanuit de browser, geen
-  buildstap.
+- **Webpagina:** `index.html`, rechtstreeks vanuit de browser, geen buildstap.
 - **Backend:** Python-module `knmi_radar/`, gedraaid als systemd-dienst
   (`mijnradar.service`) met een timer die elke 5 minuten ververst
-  (`mijnradar.timer`). Haalt HDF5-radarbestanden op via de KNMI Open Data
-  API, rendert ze naar transparante PNG's (`knmi_radar/render.py`) en
-  schrijft `frames.json` (`knmi_radar/run.py`).
-- **Projectie:** het KNMI-raster (polaire stereografisch, km) wordt
-  omgerekend naar webmercator via een eenmalig berekende opzoektabel, die op
-  schijf wordt bewaard (cache) om niet bij elke run opnieuw te hoeven
-  rekenen.
-- **Databron:** KNMI Open Data API, datasets `nl_rdr_data_rtcor_5m`
-  (historie) en `radar_forecast` (nowcast).
+  (`mijnradar.timer`).
+
+Indeling van de module:
+
+    bronnen/opendata.py   KNMI Open Data API: losse bestanden ophalen
+    bronnen/ogc.py        KNMI-kaartdienst (ADAGUC): rasters via WCS
+    raster.py             doelraster, projectie en opzoektabel (alleen HDF5)
+    kleur.py              kleurstops naar RGBA, logaritmisch of lineair
+    lagen/neerslag.py     kleurschaal, kalibratie en reeksen van de neerslaglaag
+    lagen/zon.py          helderheidsindex en weergave van de zonlaag
+    alert.py              weeralert bij verwachte neerslag
+    run.py                loopt over de beschikbare lagen, schrijft frames.json
+
+Een laag beschrijft zichzelf volledig: naam, eenheid, tijdstap, legenda en een
+functie die de PNG's bijwerkt. Een nieuwe laag toevoegen is daardoor een nieuw
+bestand in `lagen/` plus een regel in `lagen/__init__.py`, zonder wijziging in
+`run.py` of in de kaartcode.
+
+**Projectie.** De neerslaglaag komt binnen als HDF5 in een polair stereografisch
+raster (km) en wordt omgerekend naar webmercator via een eenmalig berekende
+opzoektabel, die op schijf wordt bewaard. De zonlaag heeft dat niet nodig: de
+kaartdienst van het KNMI levert het raster al uitgesneden en herprojecteerd op
+precies het doelraster.
 
 ## Instellingen
 
 Kopieer `mijnradar.env.example` naar `/etc/mijnradar/mijnradar.env` op de
-server en vul `KNMI_API_KEY` in. Dit bestand bevat geheimen (ook het
+server en vul de sleutels in. Dit bestand bevat geheimen (ook het
 SMTP-wachtwoord van het weeralert) en hoort nooit op GitHub.
+
+Er zijn twee losse sleutels nodig, allebei aan te vragen in de API Catalog van
+het KNMI Developer Portal. Ze zijn niet uitwisselbaar: de Open Data-sleutel
+geeft op de kaartdienst een 403.
+
+- `KNMI_API_KEY` — Open Data API, voor de neerslaglaag.
+- `KNMI_WMS_API_KEY` — Web Map Service, voor de zonlaag. Deze sleutel dekt ook
+  de WCS-verzoeken, want die lopen via hetzelfde adres.
 
 ## Weeralert
 
@@ -54,14 +96,18 @@ breekt het renderen niet.
 - Werkmap (tijdelijke HDF5-bestanden): `/var/lib/mijnradar/werk/`.
 - Cache (opzoektabel voor de projectie-omzetting): `/var/lib/mijnradar/cache/`.
 - Uitvoer voor de webpagina: `/var/www/mijnradar/data/` (`frames.json`,
-  `history/`, `forecast/`).
+  `history/`, `forecast/`, `zon/`).
 - Systemd-eenheden: `mijnradar.service` en `mijnradar.timer`, geïnstalleerd
   in `/etc/systemd/system/` (bronbestanden in dit repository onder
   `systemd/`).
 
-Er is nog geen publicatiescript; bijwerken op de server gebeurt vooralsnog
-handmatig (bestanden kopiëren naar `/opt/mijnradar/` en de dienst herstarten
-met `sudo systemctl restart mijnradar.service`).
+Publiceren gaat met het generieke script van lab023:
+
+    ~/publiceer.sh mijnradar
+
+Omdat mijnradar een achterkant heeft, staan er twee extra bestanden in de repo.
+`.publiceer-negeer` houdt `knmi_radar/` en `systemd/` uit de docroot, en
+`publiceer-extra.sh` zet die op hun eigen plek en herstart de dienst.
 
 ## Bekende storing en oplossing (2026-07-15)
 

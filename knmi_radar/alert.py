@@ -23,8 +23,7 @@ import h5py
 import numpy as np
 from pyproj import Transformer
 
-from knmi_radar.lagen.neerslag import _kalibratie
-from knmi_radar.raster import lees_projectie
+from knmi_radar.raster import kalibratie, lees_projectie
 
 log = logging.getLogger("mijnradar.alert")
 
@@ -83,7 +82,7 @@ def _max_rond(groep: h5py.Group, rij: int, kol: int, straal: int) -> float:
     masker = (rr - rij) ** 2 + (kk - kol) ** 2 <= straal ** 2
     if not masker.any():
         return 0.0
-    a, b, nodata = _kalibratie(groep)
+    a, b, nodata = kalibratie(groep)
     mm_per_uur = np.where(blok == nodata, 0.0, (blok * a + b) * 12.0)
     return float(mm_per_uur[masker].max())
 

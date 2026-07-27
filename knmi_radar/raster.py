@@ -46,6 +46,19 @@ def grenzen() -> list[list[float]]:
     return [[DOEL["zuid"], DOEL["west"]], [DOEL["noord"], DOEL["oost"]]]
 
 
+def bbox_mercator() -> str:
+    """Doelgebied in webmercator, als BBOX-tekst voor een WCS-verzoek.
+
+    Lagen die hun raster bij de kaartdienst opvragen geven dit mee, samen met
+    de breedte en hoogte uit DOEL. Het antwoord past dan exact op de andere
+    lagen, zonder eigen herprojectie.
+    """
+    naar = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+    x_west, y_zuid = naar.transform(DOEL["west"], DOEL["zuid"])
+    x_oost, y_noord = naar.transform(DOEL["oost"], DOEL["noord"])
+    return "%.1f,%.1f,%.1f,%.1f" % (x_west, y_zuid, x_oost, y_noord)
+
+
 def lees_projectie(h5: h5py.File) -> tuple[str, float, float]:
     """Leest proj4-parameters en rasteroffsets uit het bestand.
 
@@ -63,6 +76,23 @@ def lees_projectie(h5: h5py.File) -> tuple[str, float, float]:
             ruw = mp.attrs["projection_proj4_params"]
             proj4 = ruw.decode() if isinstance(ruw, bytes) else str(ruw)
     return proj4, kol_offset, rij_offset
+
+
+def kalibratie(groep: h5py.Group) -> tuple[float, float, int]:
+    """Leest de kalibratieformule GEO = a * PV + b en de nodata-waarde."""
+    a, b, nodata = 0.01, 0.0, 65535
+    cal = groep.get("calibration")
+    if cal is not None:
+        formule = cal.attrs.get("calibration_formulas")
+        if formule is not None:
+            tekst = formule[0] if isinstance(formule, np.ndarray) else formule
+            tekst = tekst.decode() if isinstance(tekst, bytes) else str(tekst)
+            m = re.search(r"GEO\s*=\s*([0-9.eE+-]+)\s*\*\s*PV\s*\+\s*([0-9.eE+-]+)", tekst)
+            if m:
+                a, b = float(m.group(1)), float(m.group(2))
+        if "calibration_out_of_image" in cal.attrs:
+            nodata = int(np.ravel(cal.attrs["calibration_out_of_image"])[0])
+    return a, b, nodata
 
 
 def opzoektabel(proj4: str, kol_offset: float, rij_offset: float,

@@ -65,9 +65,15 @@
             color: #fff;
         }
 
-        .mode-btn:hover:not(.active) {
+        .mode-btn:hover:not(.active):not(:disabled) {
             background: #374151;
             color: #e5e7eb;
+        }
+
+        /* Niet elke laag heeft een verwachting */
+        .mode-btn:disabled {
+            opacity: 0.35;
+            cursor: default;
         }
 
         #time-display {
@@ -413,7 +419,7 @@ function setLaag(k) {
     history.replaceState(null, '', url);
     bouwLagen();
     bouwLegenda();
-    pasModusToe(mode);
+    pasModusToe(reeks(mode).length ? mode : 'history');
 }
 
 function bouwLagen() {
@@ -514,6 +520,14 @@ function goToFrame(idx) {
 // pasModusToe wisselt de reeks zonder het afspelen te onderbreken; setMode is
 // voor de knoppen en stopt het afspelen eerst. Geeft true terug bij succes.
 function pasModusToe(m, startIdx) {
+    // Niet elke laag heeft een verwachting: de zonlaag komt van een satelliet
+    // die alleen waarnemingen levert. De knop gaat dan uit.
+    const heeftVerwachting = reeks('forecast').length > 0;
+    const knopVerwachting = document.getElementById('btn-forecast');
+    knopVerwachting.disabled = !heeftVerwachting;
+    knopVerwachting.title = heeftVerwachting ? '' : 'Deze laag heeft geen verwachting';
+    if (m === 'forecast' && !heeftVerwachting) m = 'history';
+
     mode = m;
 
     document.getElementById('btn-history').classList.toggle('active', m === 'history');
@@ -599,7 +613,7 @@ function startPlay() {
             // Einde van de reeks: door naar de andere reeks, zodat de lus
             // afwisselend de afgelopen 2 uur en de voorspelling toont.
             const andere = mode === 'history' ? 'forecast' : 'history';
-            if ((frameData[andere] || []).length) {
+            if (reeks(andere).length) {
                 pasModusToe(andere, 0);
                 return;
             }
