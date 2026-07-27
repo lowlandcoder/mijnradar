@@ -1,0 +1,6 @@
+# Extra uitsluitingen voor publiceer.sh: deze bestanden horen niet in de
+# docroot van mijnradar. De Python-module en de systemd-eenheden worden door
+# publiceer-extra.sh op de juiste plek gezet.
+knmi_radar/
+systemd/
+*.example
