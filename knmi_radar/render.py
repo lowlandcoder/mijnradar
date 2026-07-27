@@ -210,3 +210,13 @@ def render_bestand(h5_pad: str, uitvoer_map: str, cache_map: str,
 def grenzen() -> list[list[float]]:
     """Kaartgrenzen voor Leaflet: [[zuid, west], [noord, oost]]."""
     return [[DOEL["zuid"], DOEL["west"]], [DOEL["noord"], DOEL["oost"]]]
+
+
+def legenda() -> list[list]:
+    """Kleurstops als [waarde, "#rrggbb"], voor de legenda in de browser.
+
+    De pagina bouwt de legenda hiermee zelf op, zodat de kleuren altijd
+    overeenkomen met wat hier gerenderd wordt. Vroeger stonden ze dubbel:
+    hier en nog eens vast in index.html.
+    """
+    return [[waarde, "#%02x%02x%02x" % kleur[:3]] for waarde, kleur in KLEURSTOPS]

@@ -312,7 +312,9 @@
 
 <!-- Topbar -->
 <div id="topbar">
-    <h1>🌧 Neerslag NL</h1>
+    <h1 id="paginatitel">🌧 Neerslag NL</h1>
+    <!-- Laagkeuze: blijft verborgen zolang er maar een laag is -->
+    <div class="mode-toggle" id="laag-keuze" style="display: none"></div>
     <div class="mode-toggle">
         <button class="mode-btn active" id="btn-history" onclick="setMode('history')">Afgelopen 2 uur</button>
         <button class="mode-btn" id="btn-forecast" onclick="setMode('forecast')">Voorspelling 2 uur</button>
@@ -324,11 +326,13 @@
 <!-- Map -->
 <div id="map"></div>
 
-<!-- Legenda (over de kaart); kleuren gelijk aan KLEURSTOPS in render.py -->
+<!-- Legenda (over de kaart). De inhoud hieronder is alleen een terugval: de
+     pagina bouwt de legenda op uit frames.json, zodat de kleuren altijd gelijk
+     zijn aan wat de server rendert. -->
 <div id="legend">
-    <div class="title">Neerslag (mm/uur)</div>
-    <div class="legend-gradient"></div>
-    <div class="legend-labels">
+    <div class="title" id="legend-title">Neerslag (mm/uur)</div>
+    <div class="legend-gradient" id="legend-gradient"></div>
+    <div class="legend-labels" id="legend-labels">
         <span>0,1</span><span>0,3</span><span>1</span><span>3</span>
         <span>10</span><span>30</span><span>100</span>
     </div>
@@ -378,6 +382,76 @@ let radarLayer = null;
 let refreshTimer = null;
 
 const VERVERS_MS = 5 * 60 * 1000; // server werkt frames.json elke 5 minuten bij
+
+// ── Lagen ──────────────────────────────────────────────────────────────
+// frames.json bevat een sleutel `layers` met per laag een eigen beschrijving
+// (naam, eenheid, legenda) en eigen reeksen. Ontbreekt die sleutel, dan wordt
+// teruggevallen op de oude opzet met `history` en `forecast` op het hoogste
+// niveau. Zo blijft de pagina werken met een oudere server, en andersom.
+let laag = new URLSearchParams(location.search).get('laag');
+
+function laagGegevens() {
+    const lagen = frameData.layers;
+    if (!lagen || !Object.keys(lagen).length) return frameData;
+    if (!laag || !lagen[laag]) {
+        laag = lagen[frameData.standaardlaag] ? frameData.standaardlaag
+                                              : Object.keys(lagen)[0];
+    }
+    return lagen[laag];
+}
+
+// Reeks frames voor een modus ('history' of 'forecast') binnen de huidige laag
+function reeks(m) {
+    return laagGegevens()[m] || [];
+}
+
+function setLaag(k) {
+    if (k === laag) return;
+    laag = k;
+    const url = new URL(location);
+    url.searchParams.set('laag', k);
+    history.replaceState(null, '', url);
+    bouwLagen();
+    bouwLegenda();
+    pasModusToe(mode);
+}
+
+function bouwLagen() {
+    const lagen = frameData.layers || {};
+    const houder = document.getElementById('laag-keuze');
+    const sleutels = Object.keys(lagen);
+    // Bij een enkele laag heeft een keuzeknop geen zin
+    if (sleutels.length < 2) { houder.style.display = 'none'; return; }
+    houder.style.display = '';
+    houder.innerHTML = '';
+    laagGegevens();
+    for (const k of sleutels) {
+        const knop = document.createElement('button');
+        knop.className = 'mode-btn' + (k === laag ? ' active' : '');
+        knop.textContent = lagen[k].naam || k;
+        knop.onclick = () => setLaag(k);
+        houder.appendChild(knop);
+    }
+}
+
+function bouwLegenda() {
+    const g = laagGegevens();
+    if (g.naam) {
+        document.getElementById('paginatitel').textContent =
+            (g.pictogram ? g.pictogram + ' ' : '') + g.naam + ' NL';
+        document.title = g.naam + ' NL \u2014 KNMI Open Data';
+    }
+    const stops = g.legenda;
+    if (!stops || stops.length < 2) return;
+    const delen = stops.map((s, i) =>
+        `${s[1]} ${(100 * i / (stops.length - 1)).toFixed(1)}%`).join(', ');
+    document.getElementById('legend-gradient').style.background =
+        `linear-gradient(to right, ${delen})`;
+    document.getElementById('legend-title').textContent =
+        (g.naam || '') + (g.eenheid ? ` (${g.eenheid})` : '');
+    document.getElementById('legend-labels').innerHTML = stops
+        .map(s => `<span>${String(s[0]).replace('.', ',')}</span>`).join('');
+}
 
 // ── Gegevens ophalen ──────────────────────────────────────────────────────────
 async function haalFrames() {
@@ -445,7 +519,7 @@ function pasModusToe(m, startIdx) {
     document.getElementById('btn-history').classList.toggle('active', m === 'history');
     document.getElementById('btn-forecast').classList.toggle('active', m === 'forecast');
 
-    frames = frameData[m] || [];
+    frames = reeks(m);
     document.getElementById('timeline').max = Math.max(frames.length - 1, 0);
 
     if (!frames.length) {
@@ -472,6 +546,8 @@ async function ververs(eersteKeer) {
         const data = await haalFrames();
         if (!data.bounds) throw new Error('Geen kaartgrenzen ontvangen');
         frameData = data;
+        bouwLagen();
+        bouwLegenda();
 
         if (eersteKeer) {
             // Direct starten met afspelen: eerst de afgelopen 2 uur,
@@ -482,7 +558,7 @@ async function ververs(eersteKeer) {
 
         if (playing) {
             // Tijdens het afspelen alleen de gegevens verversen.
-            frames = frameData[mode] || [];
+            frames = reeks(mode);
             document.getElementById('timeline').max = Math.max(frames.length - 1, 0);
             if (!frames.length) { setStatus('error', '● Geen gegevens'); stopPlay(); return; }
             if (currentFrame >= frames.length) goToFrame(0);
@@ -492,7 +568,7 @@ async function ververs(eersteKeer) {
         const opLaatsteFrame =
             mode === 'history' ? currentFrame >= frames.length - 1 : currentFrame === 0;
 
-        frames = frameData[mode] || [];
+        frames = reeks(mode);
         document.getElementById('timeline').max = Math.max(frames.length - 1, 0);
 
         if (!frames.length) {

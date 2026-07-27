@@ -23,7 +23,7 @@ import sys
 
 from knmi_radar import alert
 from knmi_radar.fetch import KNMIClient
-from knmi_radar.render import render_bestand, grenzen
+from knmi_radar.render import render_bestand, grenzen, legenda
 
 log = logging.getLogger("mijnradar")
 
@@ -31,6 +31,19 @@ HISTORIE = {"dataset": "nl_rdr_data_rtcor_5m", "versie": "1.0"}
 NOWCAST = {"dataset": "radar_forecast", "versie": "2.0"}
 VENSTER_MINUTEN = 120  # 2 uur historie
 STAP_MINUTEN = 5
+
+# Beschrijving van de neerslaglaag. frames.json bevat sinds deze opzet per laag
+# zo'n blok, zodat de browser niets meer over een laag hoeft te weten: naam,
+# eenheid, tijdstap en legenda komen allemaal mee. Een volgende laag (zon) is
+# daarmee een kwestie van een tweede beschrijving, zonder wijziging in de kaart.
+LAAG_NEERSLAG = {
+    "naam": "Neerslag",
+    "pictogram": "\U0001f327",
+    "eenheid": "mm/uur",
+    "stap": STAP_MINUTEN,
+    "schaal": "log",
+    "bron": "KNMI Open Data, radarcomposiet en nowcast",
+}
 
 
 def tijd_uit_naam(bestandsnaam: str) -> dt.datetime | None:
@@ -163,9 +176,18 @@ def main() -> int:
         log.error("Nowcast mislukt: %s", fout)
         fouten.append(f"nowcast: {fout}")
 
+    neerslag = dict(LAAG_NEERSLAG)
+    neerslag["legenda"] = legenda()
+    neerslag["history"] = historie_frames
+    neerslag["forecast"] = nowcast_frames
+
     frames = {
         "generated": iso(dt.datetime.now(dt.timezone.utc)),
         "bounds": grenzen(),
+        "standaardlaag": "neerslag",
+        "layers": {"neerslag": neerslag},
+        # Overgangsregeling: de oude sleutels blijven voorlopig staan, zodat een
+        # pagina die nog niet laagbewust is gewoon blijft werken.
         "history": historie_frames,
         "forecast": nowcast_frames,
         "errors": fouten,
