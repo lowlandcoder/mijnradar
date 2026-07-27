@@ -23,7 +23,8 @@ import sys
 
 from knmi_radar import alert
 from knmi_radar.fetch import KNMIClient
-from knmi_radar.render import render_bestand, grenzen, legenda
+from knmi_radar.lagen import neerslag as laag_neerslag
+from knmi_radar.raster import grenzen
 
 log = logging.getLogger("mijnradar")
 
@@ -31,19 +32,6 @@ HISTORIE = {"dataset": "nl_rdr_data_rtcor_5m", "versie": "1.0"}
 NOWCAST = {"dataset": "radar_forecast", "versie": "2.0"}
 VENSTER_MINUTEN = 120  # 2 uur historie
 STAP_MINUTEN = 5
-
-# Beschrijving van de neerslaglaag. frames.json bevat sinds deze opzet per laag
-# zo'n blok, zodat de browser niets meer over een laag hoeft te weten: naam,
-# eenheid, tijdstap en legenda komen allemaal mee. Een volgende laag (zon) is
-# daarmee een kwestie van een tweede beschrijving, zonder wijziging in de kaart.
-LAAG_NEERSLAG = {
-    "naam": "Neerslag",
-    "pictogram": "\U0001f327",
-    "eenheid": "mm/uur",
-    "stap": STAP_MINUTEN,
-    "schaal": "log",
-    "bron": "KNMI Open Data, radarcomposiet en nowcast",
-}
 
 
 def tijd_uit_naam(bestandsnaam: str) -> dt.datetime | None:
@@ -84,7 +72,8 @@ def verwerk_historie(client: KNMIClient, data_map: str, werk_map: str,
         if not os.path.exists(png_pad):
             h5_pad = os.path.join(werk_map, bestandsnaam)
             client.download(**HISTORIE, bestandsnaam=bestandsnaam, doelpad=h5_pad)
-            gerenderd = render_bestand(h5_pad, uitvoer, cache_map, prefix="tmp_rt")
+            gerenderd = laag_neerslag.render_bestand(h5_pad, uitvoer, cache_map,
+                                                     prefix="tmp_rt")
             os.replace(os.path.join(uitvoer, gerenderd[0]["png"]), png_pad)
             os.remove(h5_pad)
         frames.append({"time": iso(t), "file": f"history/{png_naam}"})
@@ -113,7 +102,7 @@ def verwerk_nowcast(client: KNMIClient, data_map: str, werk_map: str,
         tmp_map = uitvoer + ".nieuw"
         shutil.rmtree(tmp_map, ignore_errors=True)
         os.makedirs(tmp_map)
-        render_bestand(h5_pad, tmp_map, cache_map, prefix="fc")
+        laag_neerslag.render_bestand(h5_pad, tmp_map, cache_map, prefix="fc")
         # Weeralert: controleer de nieuwe verwachting op neerslag rond het
         # ingestelde punt. Een fout hier mag het renderen niet breken.
         try:
@@ -176,8 +165,8 @@ def main() -> int:
         log.error("Nowcast mislukt: %s", fout)
         fouten.append(f"nowcast: {fout}")
 
-    neerslag = dict(LAAG_NEERSLAG)
-    neerslag["legenda"] = legenda()
+    neerslag = dict(laag_neerslag.BESCHRIJVING)
+    neerslag["legenda"] = laag_neerslag.legenda()
     neerslag["history"] = historie_frames
     neerslag["forecast"] = nowcast_frames
 

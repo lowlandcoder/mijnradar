@@ -23,7 +23,8 @@ import h5py
 import numpy as np
 from pyproj import Transformer
 
-from knmi_radar.render import _kalibratie, _lees_projectie
+from knmi_radar.lagen.neerslag import _kalibratie
+from knmi_radar.raster import lees_projectie
 
 log = logging.getLogger("mijnradar.alert")
 
@@ -51,10 +52,10 @@ def _instellingen() -> dict:
 def _rooster_positie(h5: h5py.File, lat: float, lon: float) -> tuple[int, int]:
     """Zet lengte- en breedtegraad om naar (rij, kolom) in het bronraster.
 
-    Zelfde omrekening als in render._opzoektabel: de KNMI-ellipsoide staat
+    Zelfde omrekening als in raster.opzoektabel: de KNMI-ellipsoide staat
     in kilometers en wordt voor pyproj naar meters geschaald.
     """
-    proj4, kol_offset, rij_offset = _lees_projectie(h5)
+    proj4, kol_offset, rij_offset = lees_projectie(h5)
     schaal = 1.0
     m = re.search(r"\+a=([0-9.]+)", proj4)
     if m and float(m.group(1)) < 10000:
