@@ -3,4 +3,5 @@
 # publiceer-extra.sh op de juiste plek gezet.
 knmi_radar/
 systemd/
+homeassistant/
 *.example

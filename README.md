@@ -47,8 +47,12 @@ Indeling van de module:
     kleur.py              kleurstops naar RGBA, logaritmisch of lineair
     lagen/neerslag.py     kleurschaal, kalibratie en reeksen van de neerslaglaag
     lagen/zon.py          helderheidsindex en weergave van de zonlaag
-    alert.py              weeralert bij verwachte neerslag
+    alert.py              weeralert bij verwachte neerslag, mail en MQTT
     run.py                loopt over de beschikbare lagen, schrijft frames.json
+
+Daarnaast staat in `homeassistant/` de automatisering die van het MQTT-bericht
+een telefoonmelding maakt. Die map gaat niet mee naar de docroot en niet naar
+`/opt`; de inhoud wordt met de hand in Home Assistant gezet.
 
 Een laag beschrijft zichzelf volledig: naam, eenheid, tijdstap, legenda en een
 functie die de PNG's bijwerkt. Een nieuwe laag toevoegen is daardoor een nieuw
@@ -65,7 +69,8 @@ precies het doelraster.
 
 Kopieer `mijnradar.env.example` naar `/etc/mijnradar/mijnradar.env` op de
 server en vul de sleutels in. Dit bestand bevat geheimen (ook het
-SMTP-wachtwoord van het weeralert) en hoort nooit op GitHub.
+SMTP-wachtwoord en het MQTT-wachtwoord van het weeralert) en hoort nooit op
+GitHub.
 
 Er zijn twee losse sleutels nodig, allebei aan te vragen in de API Catalog van
 het KNMI Developer Portal. Ze zijn niet uitwisselbaar: de Open Data-sleutel
@@ -77,16 +82,72 @@ geeft op de kaartdienst een 403.
 
 ## Weeralert
 
-De module `knmi_radar/alert.py` controleert bij elk nieuw nowcastbestand of
-er binnen de ingestelde straal rond het punt (standaard 10 km rond Haarlem)
-neerslag wordt verwacht van ten minste de drempel (standaard 1 mm/uur). Zo
-ja, dan gaat er een e-mail naar de adressen in `ALERT_NAAR`, met het
-verwachte begintijdstip en de zwaarste intensiteit. Na een alert blijft het
-stil tot de wachttijd om is (standaard 6 uur); dat tijdstip staat in
-`status.json` in de cachemap. Alle waarden zijn instelbaar in
-`/etc/mijnradar/mijnradar.env` (zie `mijnradar.env.example`). Het alert
-staat uit zolang `ALERT_NAAR` of `SMTP_HOST` leeg is; een fout in het alert
-breekt het renderen niet.
+De module `knmi_radar/alert.py` controleert bij elk nieuw nowcastbestand of er
+binnen de ingestelde straal rond het punt (standaard 10 km rond Haarlem)
+neerslag wordt verwacht van ten minste de drempel (standaard 1 mm/uur). Zo ja,
+dan gaat er een melding uit met het verwachte begintijdstip en de zwaarste
+intensiteit. Alle waarden zijn instelbaar in `/etc/mijnradar/mijnradar.env`
+(zie `mijnradar.env.example`). Een fout in het alert breekt het renderen niet.
+
+### Twee kanalen
+
+| Kanaal | Staat aan bij | Waar het heen gaat |
+| --- | --- | --- |
+| mail | `ALERT_NAAR` en `SMTP_HOST` gevuld | de adressen in `ALERT_NAAR` |
+| mqtt | `MQTT_HOST` en `MQTT_TOPIC` gevuld | het onderwerp op de broker |
+
+Een kanaal staat aan zodra de instellingen ervan gevuld zijn, hetzelfde patroon
+als bij de lagen. Zijn beide leeg, dan gebeurt er niets. Een storing in het ene
+kanaal houdt het andere niet tegen; pas als geen enkel kanaal lukt, blijft de
+rustperiode ongezet en volgt bij de volgende run een nieuwe poging.
+
+Na een verstuurde melding blijft het stil tot de wachttijd om is (standaard 6
+uur). Dat tijdstip staat in `status.json` in de cachemap, onder
+`laatste_alert`, en geldt voor beide kanalen samen: mail en telefoonmelding
+gaan altijd gelijk op.
+
+### Het MQTT-bericht
+
+Het bericht gaat als JSON naar `MQTT_TOPIC` (standaard `mijnradar/neerslag`),
+met qos 1 en zonder retain. Zonder retain, want een bewaard bericht zou Home
+Assistant bij elke herstart opnieuw laten melden.
+
+    {
+      "verzonden": "2026-08-20T14:35:00+00:00",
+      "plaats": "Haarlem",
+      "straal_km": 10.0,
+      "drempel_mm_uur": 1.0,
+      "eerste_neerslag": "2026-08-20T14:50:00+00:00",
+      "eerste_neerslag_lokaal": "16:50",
+      "minuten_tot_neerslag": 15,
+      "piek_mm_uur": 4.2,
+      "titel": "Neerslag verwacht rond Haarlem omstreeks 16:50",
+      "tekst": "Eerste neerslag omstreeks 16:50, tot 4,2 mm/uur binnen 10 km.",
+      "url": "https://mijnradar.lab023.nl"
+    }
+
+De velden `titel` en `tekst` staan er kant-en-klaar in, zodat de automatisering
+in Home Assistant niets hoeft uit te rekenen. De losse getallen staan er ook in
+voor een uitgebreidere melding later.
+
+Het account op de broker heet `mijnradar` en is alleen voor deze toepassing,
+volgens de afspraak in `CLAUDE.md` dat elke dienst een eigen account krijgt.
+Het wachtwoord staat in `/etc/mijnradar/mijnradar.env` en niet in de repo.
+
+### Telefoonmelding via Home Assistant
+
+`homeassistant/mijnradar-neerslag.yaml` bevat de automatisering die op het
+onderwerp luistert en `notify.mobile_app_s24_pk` aanroept. Die inhoud gaat met
+de hand onderaan `automations.yaml` van Home Assistant en wordt daarna geladen
+via Ontwikkelhulpmiddelen, YAML, Automatiseringen herladen.
+
+Beproeven zonder op regen te wachten, met een proefbericht op de broker:
+
+    sudo bash -c 'set -a; . /etc/mijnradar/mijnradar.env; set +a; \
+      cd /opt/mijnradar && ./venv/bin/python -m knmi_radar.alert --proef'
+
+Dat raakt `status.json` niet aan, dus de rustperiode van het echte alert
+verandert er niet door.
 
 ## Serveronderdelen
 
@@ -106,8 +167,10 @@ Publiceren gaat met het generieke script van lab023:
     ~/publiceer.sh mijnradar
 
 Omdat mijnradar een achterkant heeft, staan er twee extra bestanden in de repo.
-`.publiceer-negeer` houdt `knmi_radar/` en `systemd/` uit de docroot, en
-`publiceer-extra.sh` zet die op hun eigen plek en herstart de dienst.
+`.publiceer-negeer` houdt `knmi_radar/`, `systemd/` en `homeassistant/` uit de
+docroot, en `publiceer-extra.sh` zet de eerste twee op hun eigen plek en
+herstart de dienst. De map `homeassistant/` is alleen bedoeld om na te lezen en
+over te nemen in Home Assistant.
 
 ## Bekende storing en oplossing (2026-07-15)
 

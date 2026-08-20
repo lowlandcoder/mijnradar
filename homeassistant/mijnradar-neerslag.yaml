@@ -1,0 +1,40 @@
+# =========================================================================
+# Automatisering voor de neerslagmelding van mijnradar
+# =========================================================================
+# Gaat onderaan automations.yaml in
+# /srv/ssddata/mijnhuis/homeassistant/config/automations.yaml
+#
+# Home Assistant leest het bestand opnieuw via
+# Ontwikkelhulpmiddelen, YAML, Automatiseringen herladen.
+#
+# Voorwaarde: de MQTT-integratie is gekoppeld aan de broker op
+# 192.168.2.38:1883 met het account "homeassistant". Dat is al zo, want
+# mijnp2000 gebruikt dezelfde broker.
+#
+# Het bericht dat mijnradar publiceert bevat een kant-en-klare "titel" en
+# "tekst", dus deze automatisering hoeft niets uit te rekenen. De overige
+# velden (piek_mm_uur, minuten_tot_neerslag, straal_km) zitten er ook in,
+# voor als de melding later uitgebreider moet worden.
+# =========================================================================
+
+- id: mijnradar_neerslag_melding
+  alias: "MijnRadar: neerslag in de buurt"
+  description: >-
+    Stuurt een telefoonmelding zodra mijnradar neerslag verwacht binnen de
+    ingestelde straal. Het afknijpen van herhaalde meldingen gebeurt in
+    mijnradar zelf (ALERT_WACHT_UUR), niet hier.
+  mode: queued
+  max: 5
+  triggers:
+    - trigger: mqtt
+      topic: mijnradar/neerslag
+  actions:
+    - action: notify.mobile_app_s24_pk
+      data:
+        title: "{{ trigger.payload_json.titel }}"
+        message: "{{ trigger.payload_json.tekst }}"
+        data:
+          url: "{{ trigger.payload_json.url }}"
+          tag: mijnradar-neerslag
+          channel: Weer
+          notification_icon: mdi:weather-pouring
