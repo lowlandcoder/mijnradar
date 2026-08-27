@@ -80,6 +80,31 @@ geeft op de kaartdienst een 403.
 - `KNMI_WMS_API_KEY` — Web Map Service, voor de zonlaag. Deze sleutel dekt ook
   de WCS-verzoeken, want die lopen via hetzelfde adres.
 
+### Basiskaart van CARTO
+
+Onder de radarbeelden ligt de kaart Positron van CARTO. Sinds augustus 2026
+vraagt CARTO daarvoor een sleutel; zonder sleutel legt de dienst het watermerk
+"API KEY REQUIRED" over elke tegel. De kaart blijft verder gewoon werken.
+
+De sleutel staat als `CARTO_KEY` in `/etc/mijnradar/mijnradar.env` en dus niet
+in deze repo. De dienst zet hem bij elke run in `frames.json`, onder
+`basiskaart.sleutel`; de pagina leest hem daar en hangt hem als `key` achter de
+tegel-URL. Blijft `CARTO_KEY` leeg, dan laat de pagina de tegel-URL ongemoeid
+en verschijnt het watermerk weer. De sleutel wisselen kost daarom alleen een
+regel in het env-bestand en een nieuwe run, geen wijziging in de code.
+
+De sleutel bereikt wel de browser van de bezoeker, want die haalt de tegels
+zelf op. Dat hoort zo bij een basiskaartsleutel. Wie dat niet wil, moet de
+tegels via nginx laten lopen en de sleutel daar toevoegen.
+
+De vermelding van OpenStreetMap en CARTO onderaan de kaart is een voorwaarde
+van de gratis laag en hoort zichtbaar te blijven. Die staat in `index.html` bij
+de laag zelf.
+
+Let op de volgorde bij het instellen: eerst `CARTO_KEY` in het env-bestand op
+de server, daarna publiceren. Publiceren start meteen een run, en die run
+schrijft de sleutel in `frames.json`.
+
 ## Weeralert
 
 De module `knmi_radar/alert.py` controleert bij elk nieuw nowcastbestand of er
@@ -154,10 +179,19 @@ verandert er niet door.
 - Code en virtualenv: `/opt/mijnradar/` (module `knmi_radar/`,
   `requirements.txt`).
 - Instellingen: `/etc/mijnradar/mijnradar.env`.
-- Werkmap (tijdelijke HDF5-bestanden): `/var/lib/mijnradar/werk/`.
-- Cache (opzoektabel voor de projectie-omzetting): `/var/lib/mijnradar/cache/`.
+- Werkmap (tijdelijke HDF5-bestanden): `/srv/ssddata/mijnradar/werk/`.
+- Cache (opzoektabel voor de projectie-omzetting): `/srv/ssddata/mijnradar/cache/`.
+- Let op: het eenheidsbestand in `systemd/` in deze repo noemt nog de oude
+  paden onder `/var/lib/mijnradar/`. Op de server worden die overschreven door
+  een aanvulling op de eenheid, sinds de verhuizing naar de externe SSD op
+  03-08-2026. Controleren kan met
+  `systemctl cat mijnradar.service`.
 - Uitvoer voor de webpagina: `/var/www/mijnradar/data/` (`frames.json`,
   `history/`, `forecast/`, `zon/`).
+- `robots.txt` houdt zoekmachines buiten de deur. Het bestand staat in deze
+  repo en gaat mee naar de docroot. In het serverblok hoort het buiten de
+  centrale aanmelding te blijven, met `auth_request off;` in een eigen
+  `location`-blok, anders is het niet te lezen.
 - Systemd-eenheden: `mijnradar.service` en `mijnradar.timer`, geïnstalleerd
   in `/etc/systemd/system/` (bronbestanden in dit repository onder
   `systemd/`).

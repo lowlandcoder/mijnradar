@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neerslag NL — KNMI Open Data</title>
+    <title>MijnRadar</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <style>
@@ -367,12 +367,30 @@ L.circleMarker([52.387, 4.646], {
     fillOpacity: 0.9, weight: 2
 }).addTo(map).bindTooltip('Haarlem');
 
-// Basiskaart: CartoDB Positron (licht, neutraal)
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+// Basiskaart: CartoDB Positron (licht, neutraal).
+// CARTO vraagt sinds augustus 2026 een sleutel voor de rastertegels; zonder
+// sleutel komt er een watermerk over de kaart. De sleutel staat niet hier maar
+// in /etc/mijnradar/mijnradar.env op de server, en komt via frames.json mee.
+// Blijft die leeg, dan werkt de kaart gewoon, alleen met watermerk.
+const BASISKAART_URL =
+    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+
+const basiskaart = L.tileLayer(BASISKAART_URL, {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
     subdomains: 'abcd',
     maxZoom: 19
 }).addTo(map);
+
+// De attributie van OpenStreetMap en CARTO hierboven is een voorwaarde van de
+// gratis laag en hoort dus zichtbaar te blijven.
+
+let basiskaartSleutel = null;
+
+function zetBasiskaartSleutel(sleutel) {
+    if (!sleutel || sleutel === basiskaartSleutel) return;
+    basiskaartSleutel = sleutel;
+    basiskaart.setUrl(BASISKAART_URL + '?key=' + encodeURIComponent(sleutel));
+}
 
 // ── Toestand ──────────────────────────────────────────────────────────────────
 // Radarbeelden komen niet meer via live WMS-tegels van KNMI; de server rendert
@@ -445,7 +463,7 @@ function bouwLegenda() {
     if (g.naam) {
         document.getElementById('paginatitel').textContent =
             (g.pictogram ? g.pictogram + ' ' : '') + g.naam + ' NL';
-        document.title = g.naam + ' NL \u2014 KNMI Open Data';
+        document.title = 'MijnRadar: ' + g.naam;
     }
     const stops = g.legenda;
     if (!stops || stops.length < 2) return;
@@ -560,6 +578,7 @@ async function ververs(eersteKeer) {
         const data = await haalFrames();
         if (!data.bounds) throw new Error('Geen kaartgrenzen ontvangen');
         frameData = data;
+        zetBasiskaartSleutel((data.basiskaart || {}).sleutel);
         bouwLagen();
         bouwLegenda();
 

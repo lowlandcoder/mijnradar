@@ -1,0 +1,11 @@
+# robots.txt voor de privé-subdomeinen van lab023.nl
+# (beheerpanelen en persoonlijke dashboards: start, mijnportainer, auth,
+#  mijnsdr, mijnrtl433, mijnadsb, mijnrtl433analyse, mijnp2000, mijnhuis,
+#  mijnradar)
+#
+# Doel: deze pagina's uit zoekmachines houden. Let op: robots.txt is een
+# richtlijn, geen beveiliging. De echte afscherming loopt via de centrale
+# aanmelding (oauth2-proxy, map mijnlogin).
+
+User-agent: *
+Disallow: /

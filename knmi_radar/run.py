@@ -90,10 +90,15 @@ def main() -> int:
     standaard = STANDAARDLAAG if STANDAARDLAAG in lagen else next(iter(lagen), None)
     hoofd = lagen.get(standaard, {})
 
+    # De sleutel van de CARTO-basiskaart gaat mee naar de browser, zodat die
+    # in /etc/mijnradar/mijnradar.env kan blijven staan en niet in de repo.
+    # Blijft de sleutel leeg, dan toont de basiskaart een watermerk maar werkt
+    # de pagina verder gewoon.
     frames = {
         "generated": iso(dt.datetime.now(dt.timezone.utc)),
         "bounds": grenzen(),
         "standaardlaag": standaard,
+        "basiskaart": {"sleutel": os.environ.get("CARTO_KEY", "").strip()},
         "layers": lagen,
         # Overgangsregeling: de oude sleutels blijven voorlopig staan, zodat een
         # pagina die nog niet laagbewust is gewoon blijft werken.
