@@ -1,0 +1,5 @@
+# Regeleindes vastleggen, zodat bestanden op de server goed aankomen.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.sh text eol=lf
+*.png binary
