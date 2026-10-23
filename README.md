@@ -185,7 +185,7 @@ tonen in MijnRadar.
 | --- | --- | --- |
 | KNMI Lightning detection NL23 en NL25 (Météorage) | nee | Gesloten licentie, alleen bedoeld voor LVNL. Een Open Data-sleutel geeft geen recht op gebruik. Niet gebruiken. |
 | KNMI GLM (GOES-East): `GLM_L2_LCFA` en `GLM_L2_LCFA_EVENTS` | ja, CC-BY | Via de Open Data API met dezelfde `KNMI_API_KEY` als de neerslaglaag, en ook als WMS. Getest op 27 juni 2026: geen enkele flits oostelijk van 40 graden west, dus niets boven Europa. Niet bruikbaar. |
-| EUMETSAT MTG Lightning Imager (LI) | ja, met account | Kijkt recht naar Europa. Vraagt een eigen, gratis account bij EUMETSAT (Data Store). De voorwaarden voor tonen op een eigen site zijn nog niet nagelezen. De bron is dan niet meer KNMI. |
+| EUMETSAT MTG Lightning Imager (LI) | ja, met account | Kijkt recht naar Europa. Getest op 27 juni 2026: flitsen boven Nederland aanwezig (zie de controle hieronder). Eigen, gratis account bij EUMETSAT (Data Store, consumer key en secret). Of de licentie live gebruik op een eigen site toestaat, is nog open. De bron is niet KNMI. |
 | Blitzortung | beperkt | Ruwe data alleen voor deelnemers en niet commercieel. Zonder eigen ontvanger of toestemming geen optie. |
 
 ### Controle van de GLM-data
@@ -199,16 +199,41 @@ wel aanwezig in het raster. Op 35 tot 60 graden noord stonden in dezelfde
 uren ruim 134.000 flitsen, vrijwel allemaal boven Noord-Amerika; de
 oostelijkste ligt op 40 graden west.
 
+### Controle van de MTG-LI-data
+
+Een tweede los script (`mtgli_check.py`, in de werkmap) haalt de flitsproducten
+op uit de EUMETSAT Data Store (collectie `EO:EUM:DAT:0691`, LI Lightning
+Flashes) met `eumdac`, met de consumer key en secret uit de API Key Management
+van EUMETSAT (`EUMETSAT_CONSUMER_KEY` en `EUMETSAT_CONSUMER_SECRET`). Op
+dezelfde testavond (27 juni 2026, 20:00 tot 20:30 UTC) gaf elk
+tienminutenbestand 1078 tot 1610 flitsen binnen het kader rond Nederland, en
+351 tot 443 binnen 25 km van Amsterdam (52,37 N, 4,90 O). De posities liggen
+plausibel boven Nederland.
+
+Opbouw per tien minuten: een BODY-bestand met de flitsen (`flash_time`,
+`latitude`, `longitude`, `radiance`, `flash_duration` en meer) en een
+TRAIL-bestand met alleen statistiek, zonder flitsen. De coordinaten staan als
+geheel getal met `scale_factor` 0,0027; netCDF4 rekent dat zelf om. De
+producten komen als zip.
+
 ### Uitkomst en vervolg
 
 De GLM-datasets van KNMI zijn niet bruikbaar voor MijnRadar: het GOES-East-raster
-bevat boven Europa geen flitsen. Het vervolg is de MTG Lightning Imager van
-EUMETSAT. Nog uit te zoeken:
+bevat boven Europa geen flitsen. De MTG Lightning Imager van EUMETSAT geeft
+wel bruikbare flitsen.
 
-- Staan de voorwaarden van EUMETSAT toe dat de flitsen op een eigen site worden
-  getoond, en welke bronvermelding is verplicht?
-- Een eigen, gratis account bij EUMETSAT (consumer key en secret). Die horen in
-  `/etc/mijnradar/mijnradar.env` en niet in de repo.
+Besluit van 23-10-2026: bliksem komt niet als laag in MijnRadar, maar als aparte
+toepassing MijnOnweer (eigen repo en eigen sleutels). Het vervolg staat in de
+README van mijnonweer. De punten hieronder bleven bij het onderzoek open:
+
+- Welke licentie geldt voor live gebruik? "Meteosat > 1 hr latency" verbiedt
+  operationeel en commercieel gebruik, ook via uitzending in elke vorm, en is
+  bedoeld voor testen. Voor bijna realtime data is "Meteosat < 1 hr latency"
+  nodig, waarvan de voorwaarden afhangen van het gekozen gebruiksdoel. Eerst de
+  helpdesk van EUMETSAT vragen of een privesite voor eigen gebruik past, en
+  welke bronvermelding verplicht is.
+- De consumer key en secret horen in `/etc/mijnradar/mijnradar.env` en niet in
+  de repo.
 - Hoe groot zijn de bestanden per 5 minuten en hoe snel zijn ze beschikbaar?
 - Hoe passen flitsen als punten in het ontwerp: een laag met frames, of een punt
   of melding naar het voorbeeld van het weeralert?
