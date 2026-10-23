@@ -174,6 +174,43 @@ Beproeven zonder op regen te wachten, met een proefbericht op de broker:
 Dat raakt `status.json` niet aan, dus de rustperiode van het echte alert
 verandert er niet door.
 
+## Onderzoek: onweerslaag (2026-10-23)
+
+Status: alleen onderzocht, nog niets gebouwd. Het doel is bliksem op de locatie
+tonen in MijnRadar.
+
+### Wat de bronnen toestaan
+
+| Bron | Open? | Opmerking |
+| --- | --- | --- |
+| KNMI Lightning detection NL23 en NL25 (Météorage) | nee | Gesloten licentie, alleen bedoeld voor LVNL. Een Open Data-sleutel geeft geen recht op gebruik. Niet gebruiken. |
+| KNMI GLM (GOES-East): `GLM_L2_LCFA` en `GLM_L2_LCFA_EVENTS` | ja, CC-BY | Via de Open Data API met dezelfde `KNMI_API_KEY` als de neerslaglaag, en ook als WMS. Nederland ligt aan de rand van het zicht van de satelliet; de bruikbaarheid is nog niet vastgesteld. |
+| EUMETSAT MTG Lightning Imager (LI) | ja, met account | Kijkt recht naar Europa. Vraagt een eigen, gratis account bij EUMETSAT (Data Store). De voorwaarden voor tonen op een eigen site zijn nog niet nagelezen. De bron is dan niet meer KNMI. |
+| Blitzortung | beperkt | Ruwe data alleen voor deelnemers en niet commercieel. Zonder eigen ontvanger of toestemming geen optie. |
+
+### Controle van de GLM-data
+
+Een los script (`glm_check.py`, niet in deze repo) haalt de GLM-bestanden van
+een onweersdag op en telt de flitsen binnen een kader rond Nederland en binnen
+een straal rond een locatie. Testdag: de avond van 27 juni 2026, toen in heel
+Nederland code oranje voor onweer gold. De uitkomst is nog niet bekend en wordt
+hier aangevuld.
+
+### Als de GLM-data bruikbaar blijken
+
+- De datasets zijn ook als WMS beschikbaar. De zonlaag werkt al zo
+  (`bronnen/ogc.py`), dus een rasterlaag met flitsen kan dat patroon volgen,
+  met `KNMI_WMS_API_KEY`.
+- Voor flitsen als punten, of een melding bij bliksem op de locatie naar het
+  voorbeeld van het weeralert, is de Open Data API nodig en daarmee
+  `KNMI_API_KEY`. Het quotum van 1000 verzoeken per uur is gedeeld met de
+  neerslaglaag.
+- Nieuwe bestanden horen via de Notification Service binnen te komen. KNMI
+  rekent te vaak navragen bij de Open Data API als misbruik (fair use policy).
+  De Notification Service vraagt een eigen wachtwoord.
+- Bronvermelding: KNMI als bron, met een link naar de dataset, zonder te
+  suggereren dat KNMI de toepassing aanbeveelt.
+
 ## Serveronderdelen
 
 - Code en virtualenv: `/opt/mijnradar/` (module `knmi_radar/`,
