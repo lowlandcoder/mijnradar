@@ -184,32 +184,34 @@ tonen in MijnRadar.
 | Bron | Open? | Opmerking |
 | --- | --- | --- |
 | KNMI Lightning detection NL23 en NL25 (Météorage) | nee | Gesloten licentie, alleen bedoeld voor LVNL. Een Open Data-sleutel geeft geen recht op gebruik. Niet gebruiken. |
-| KNMI GLM (GOES-East): `GLM_L2_LCFA` en `GLM_L2_LCFA_EVENTS` | ja, CC-BY | Via de Open Data API met dezelfde `KNMI_API_KEY` als de neerslaglaag, en ook als WMS. Nederland ligt aan de rand van het zicht van de satelliet; de bruikbaarheid is nog niet vastgesteld. |
+| KNMI GLM (GOES-East): `GLM_L2_LCFA` en `GLM_L2_LCFA_EVENTS` | ja, CC-BY | Via de Open Data API met dezelfde `KNMI_API_KEY` als de neerslaglaag, en ook als WMS. Getest op 27 juni 2026: geen enkele flits oostelijk van 40 graden west, dus niets boven Europa. Niet bruikbaar. |
 | EUMETSAT MTG Lightning Imager (LI) | ja, met account | Kijkt recht naar Europa. Vraagt een eigen, gratis account bij EUMETSAT (Data Store). De voorwaarden voor tonen op een eigen site zijn nog niet nagelezen. De bron is dan niet meer KNMI. |
 | Blitzortung | beperkt | Ruwe data alleen voor deelnemers en niet commercieel. Zonder eigen ontvanger of toestemming geen optie. |
 
 ### Controle van de GLM-data
 
-Een los script (`glm_check.py`, niet in deze repo) haalt de GLM-bestanden van
+Een los script (`glm_check.py`, in de werkmap en niet in deze repo) haalt de GLM-bestanden van
 een onweersdag op en telt de flitsen binnen een kader rond Nederland en binnen
 een straal rond een locatie. Testdag: de avond van 27 juni 2026, toen in heel
-Nederland code oranje voor onweer gold. De uitkomst is nog niet bekend en wordt
-hier aangevuld.
+Nederland code oranje voor onweer gold. Uitkomst: 0 van 48 bestanden hadden
+flitsen binnen het kader rond Nederland (4640 rastercellen). Het kader was dus
+wel aanwezig in het raster. Op 35 tot 60 graden noord stonden in dezelfde
+uren ruim 134.000 flitsen, vrijwel allemaal boven Noord-Amerika; de
+oostelijkste ligt op 40 graden west.
 
-### Als de GLM-data bruikbaar blijken
+### Uitkomst en vervolg
 
-- De datasets zijn ook als WMS beschikbaar. De zonlaag werkt al zo
-  (`bronnen/ogc.py`), dus een rasterlaag met flitsen kan dat patroon volgen,
-  met `KNMI_WMS_API_KEY`.
-- Voor flitsen als punten, of een melding bij bliksem op de locatie naar het
-  voorbeeld van het weeralert, is de Open Data API nodig en daarmee
-  `KNMI_API_KEY`. Het quotum van 1000 verzoeken per uur is gedeeld met de
-  neerslaglaag.
-- Nieuwe bestanden horen via de Notification Service binnen te komen. KNMI
-  rekent te vaak navragen bij de Open Data API als misbruik (fair use policy).
-  De Notification Service vraagt een eigen wachtwoord.
-- Bronvermelding: KNMI als bron, met een link naar de dataset, zonder te
-  suggereren dat KNMI de toepassing aanbeveelt.
+De GLM-datasets van KNMI zijn niet bruikbaar voor MijnRadar: het GOES-East-raster
+bevat boven Europa geen flitsen. Het vervolg is de MTG Lightning Imager van
+EUMETSAT. Nog uit te zoeken:
+
+- Staan de voorwaarden van EUMETSAT toe dat de flitsen op een eigen site worden
+  getoond, en welke bronvermelding is verplicht?
+- Een eigen, gratis account bij EUMETSAT (consumer key en secret). Die horen in
+  `/etc/mijnradar/mijnradar.env` en niet in de repo.
+- Hoe groot zijn de bestanden per 5 minuten en hoe snel zijn ze beschikbaar?
+- Hoe passen flitsen als punten in het ontwerp: een laag met frames, of een punt
+  of melding naar het voorbeeld van het weeralert?
 
 ## Serveronderdelen
 
